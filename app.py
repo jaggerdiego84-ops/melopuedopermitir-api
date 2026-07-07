@@ -26,12 +26,10 @@ def generar_noticias(user_data):
         tl = tipo_labels.get(tipo, 'gasto personal')
  
         prompt = (
-            'Eres un asesor financiero personal experto en el mercado español. '
-            'El usuario vive en '+ciudad+', analiza si puede permitirse '+tl+', '
-            'tiene ingresos de '+str(round(ingresos))+' euros al mes y ratio del '+str(round(ratio))+'%. '
-            'Genera 3 noticias relevantes y recientes (2024-2025) para esta persona concreta. '
-            'Responde SOLO con JSON válido, sin texto adicional:\n'
-            '[{"contexto":"Por qué le afecta (max 8 palabras)","titular":"Titular con gancho directo (max 15 palabras)","desarrollo":"4-5 frases con datos concretos y cifras reales explicando la noticia completa y su impacto para esta persona","fuente":"Nombre del medio","fecha":"2025"}]'
+            'Usuario en '+ciudad+', analiza '+tl+', ingresos '+str(round(ingresos))+' euros, ratio '+str(round(ratio))+'%. '
+            'Dame 3 noticias financieras españolas recientes relevantes para esta persona. '
+            'Solo JSON, sin texto extra: '
+            '[{"contexto":"por que le afecta","titular":"titular gancho directo","desarrollo":"3-4 frases con datos y cifras concretas relevantes para esta persona","fuente":"medio","fecha":"2025"}]'
         )
  
         client = anthropic.Anthropic(api_key=os.environ.get('ANTHROPIC_API_KEY', ''))
@@ -194,34 +192,94 @@ def webhook_stripe():
  
         if email:
             try:
-                print(f"==> Generando noticias personalizadas...")
-                user_data['noticias'] = generar_noticias(user_data)
+                # EMAIL 1: PDF del informe (inmediato)
+                user_data['noticias'] = []
+                import gc; gc.collect()
                 print(f"==> Generando PDF...")
                 pdf_bytes = generate_pdf(user_data)
                 pdf_b64   = base64.b64encode(pdf_bytes).decode('utf-8')
+                print(f"==> PDF generado ({len(pdf_bytes)} bytes). Enviando email 1...")
  
-                print(f"==> PDF generado ({len(pdf_bytes)} bytes). Enviando a {email}...")
- 
-                params = {
+                params1 = {
                     "from": "informe@melopuedopermitir.com",
                     "to":   [email],
                     "subject": f"Tu informe financiero está listo, {nombre}",
                     "html": f"""
-                    <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:40px 20px">
-                        <h1 style="font-size:28px;color:#17140F;margin-bottom:8px">Aquí está tu informe, {nombre}.</h1>
-                        <p style="color:#4A4540;font-size:16px;line-height:1.6">
+                    <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:40px 20px;background:#F8F5F0">
+                        <div style="background:#17140F;color:white;padding:24px 28px;border-radius:8px;margin-bottom:24px">
+                            <p style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;opacity:.5;margin-bottom:4px">MELOPUEDOPERMITIR.COM</p>
+                            <h1 style="font-size:26px;margin:0">Aquí está tu informe, {nombre}.</h1>
+                        </div>
+                        <p style="color:#4A4540;font-size:15px;line-height:1.7">
                             Tu análisis financiero personalizado está adjunto a este email.
                             Léelo con calma, guárdalo y compártelo con quien necesites para tomar la decisión.
                         </p>
-                        <p style="color:#8A847C;font-size:13px;margin-top:32px">
+                        <p style="color:#4A4540;font-size:15px;line-height:1.7;margin-top:12px">
+                            En unos minutos recibirás un segundo email con las noticias más relevantes
+                            para tu situación financiera concreta.
+                        </p>
+                        <p style="color:#8A847C;font-size:12px;margin-top:32px;border-top:1px solid #D5CFC7;padding-top:16px">
                             melopuedopermitir.com · Banco de España · OCDE · BCE
                         </p>
                     </div>
                     """,
                     "attachments": [{"filename": "informe-melopuedopermitir.pdf", "content": pdf_b64}],
                 }
-                response = resend.Emails.send(params)
-                print(f"==> Email enviado OK: {response}")
+                r1 = resend.Emails.send(params1)
+                print(f"==> Email 1 enviado OK: {r1}")
+ 
+                # EMAIL 2: Noticias personalizadas en HTML (en hilo separado)
+                def enviar_noticias(email, nombre, user_data):
+                    try:
+                        import gc as _gc
+                        print(f"==> Generando noticias para {email}...")
+                        noticias = generar_noticias(user_data)
+                        _gc.collect()
+                        if not noticias:
+                            print("==> Sin noticias, no se envía email 2")
+                            return
+ 
+                        ciudad = user_data.get('ciudad', 'España')
+                        tipo_labels = {'hijo':'guardería/hijo','vivienda':'vivienda','coche':'coche',
+                                      'formacion':'formación','capricho':'capricho','otro':'gasto'}
+                        tl = tipo_labels.get(user_data.get('tipo_gasto','otro'), 'gasto')
+ 
+                        noticias_html = ''
+                        for n in noticias:
+                            noticias_html += f"""
+                            <div style="border-left:3px solid #6B4700;padding:0 0 0 16px;margin-bottom:28px">
+                                <p style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#6B4700;margin:0 0 6px">{n.get('contexto','').upper()}</p>
+                                <h2 style="font-size:17px;color:#17140F;margin:0 0 10px;line-height:1.35">{n.get('titular','')}</h2>
+                                <p style="font-size:14px;color:#4A4540;line-height:1.7;margin:0 0 8px">{n.get('desarrollo','')}</p>
+                                <p style="font-size:11px;color:#9A9188;margin:0">{n.get('fuente','')} · {n.get('fecha','')}</p>
+                            </div>
+                            """
+ 
+                        params2 = {{
+                            "from": "informe@melopuedopermitir.com",
+                            "to":   [email],
+                            "subject": f"Noticias relacionadas con tu análisis, {{nombre}}",
+                            "html": f"""
+                            <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:40px 20px;background:#F8F5F0">
+                                <div style="background:#17140F;color:white;padding:24px 28px;border-radius:8px;margin-bottom:28px">
+                                    <p style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;opacity:.5;margin-bottom:4px">MELOPUEDOPERMITIR.COM</p>
+                                    <h1 style="font-size:22px;margin:0">Lo que está pasando y te afecta, {{nombre}}.</h1>
+                                    <p style="font-size:13px;opacity:.7;margin:8px 0 0">Seleccionado para tu perfil financiero en {ciudad}</p>
+                                </div>
+                                {{noticias_html}}
+                                <p style="color:#8A847C;font-size:12px;margin-top:32px;border-top:1px solid #D5CFC7;padding-top:16px">
+                                    melopuedopermitir.com · Banco de España · OCDE · BCE
+                                </p>
+                            </div>
+                            """
+                        }}
+                        r2 = resend.Emails.send(params2)
+                        print(f"==> Email 2 noticias enviado OK: {{r2}}")
+                    except Exception as e2:
+                        print(f"==> ERROR email 2 noticias: {{e2}}")
+ 
+                import threading as _th
+                _th.Thread(target=enviar_noticias, args=(email, nombre, user_data.copy()), daemon=True).start()
  
             except Exception as e:
                 print(f"==> ERROR: {e}")
