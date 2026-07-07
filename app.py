@@ -65,6 +65,7 @@ def crear_sesion_pago():
             'datos_json': json.dumps(user_data)[:4000],
         }
         email = user_data.get('email', '').strip()
+        print(f"==> crear_sesion_pago: nombre={user_data.get('nombre','')}, email='{email}', color={user_data.get('color','')}, ingresos={user_data.get('ingresos',0)}")
         session_params = {
             'payment_method_types': ['card'],
             'line_items': [{
