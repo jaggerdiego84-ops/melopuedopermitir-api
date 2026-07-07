@@ -1,4 +1,4 @@
-import os, json, base64, traceback
+mport os, json, base64, traceback
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 import stripe
@@ -30,14 +30,17 @@ def generar_noticias(user_data):
             'El usuario vive en '+ciudad+', analiza si puede permitirse '+tl+', '
             'tiene ingresos de '+str(round(ingresos))+' euros al mes y ratio del '+str(round(ratio))+'%. '
             'Genera 3 noticias relevantes y recientes (2024-2025) para esta persona concreta. '
+            'El campo desarrollo debe ser completo y sustancial: 6-8 frases que expliquen la noticia entera, '
+            'con datos concretos, cifras reales, y por qué afecta específicamente a esta persona en su ciudad '
+            'y con su situación financiera. No es una introducción — es la noticia completa. '
             'Responde SOLO con JSON válido, sin texto adicional:\n'
-            '[{"contexto":"Por qué le afecta","titular":"Titular con gancho directo","desarrollo":"2-3 frases explicando por qué importa para su situación","fuente":"Nombre del medio","fecha":"2025"}]'
+            '[{"contexto":"Por qué le afecta (max 8 palabras)","titular":"Titular con gancho directo (max 15 palabras)","desarrollo":"Noticia completa con datos concretos y cifras reales, 6-8 frases","fuente":"Nombre del medio","fecha":"2025"}]'
         )
  
         client = anthropic.Anthropic(api_key=os.environ.get('ANTHROPIC_API_KEY', ''))
         response = client.messages.create(
             model='claude-sonnet-4-6',
-            max_tokens=1500,
+            max_tokens=2500,
             messages=[{"role": "user", "content": prompt}]
         )
  
