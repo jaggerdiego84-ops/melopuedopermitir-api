@@ -9,7 +9,7 @@ from reportlab.lib.units import mm
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 import io, os
- 
+
 def register_fonts():
     font_paths = [
         '/usr/share/fonts/truetype/google-fonts/',
@@ -27,17 +27,17 @@ def register_fonts():
             continue
     # Fallback a Helvetica si no hay Poppins
     return False
- 
+
 FONTS_OK = register_fonts()
 F  = 'Pp'   if FONTS_OK else 'Helvetica'
 FB = 'Pp-B' if FONTS_OK else 'Helvetica-Bold'
 FM = 'Pp-M' if FONTS_OK else 'Helvetica'
 FL = 'Pp-L' if FONTS_OK else 'Helvetica'
- 
+
 W, H = A4
 MX = 20*mm; MY_BOT = 22*mm; CONTENT_W = W - 2*MX
 SP_XS=3*mm; SP_SM=5*mm; SP_MD=8*mm; SP_LG=12*mm
- 
+
 BG=HexColor('#F8F5F0'); BG3=HexColor('#DDD8CE')
 INK=HexColor('#17140F'); INK2=HexColor('#4A4540')
 INK3=HexColor('#8A847C'); INK4=HexColor('#C0BAB2')
@@ -47,7 +47,7 @@ AMAR=HexColor('#6B4700'); AMAR_L=HexColor('#FBF0DC')
 ROJO=HexColor('#7A1515'); ROJO_L=HexColor('#FAEAEA')
 DARK=HexColor('#0D0D0D')
 EUR = u'\u20ac'
- 
+
 def wrap(c, text, font, size, max_w):
     c.setFont(font, size)
     words = str(text).split()
@@ -60,62 +60,71 @@ def wrap(c, text, font, size, max_w):
             cur = word
     if cur: lines.append(cur)
     return lines
- 
+
 def hr(c, y, x1=None, x2=None, color=None, lw=0.3):
     c.setStrokeColor(color or BORDER); c.setLineWidth(lw)
     c.line(x1 or 14*mm, y, x2 or (W-MX), y)
- 
+
 def footer_line(c, n, total):
     c.setFillColor(INK4); c.setFont(F, 6)
     c.drawString(14*mm, 11*mm, u'melopuedopermitir.com  \u00b7  Banco de Espa\u00f1a \u00b7 OCDE \u00b7 BCE  \u00b7  Informe personal y confidencial')
     c.drawRightString(W-MX, 11*mm, str(n)+' / '+str(total))
     c.setStrokeColor(BORDER); c.setLineWidth(0.2)
     c.line(14*mm, 17*mm, W-MX, 17*mm)
- 
+
 def circle_num(c, cx, cy, r, num, SC):
     c.setFillColor(SC); c.circle(cx, cy, r, fill=1, stroke=0)
     c.setFillColor(WHITE); c.setFont(FB, r*1.3)
     c.drawCentredString(cx, cy - r*0.35, str(num))
- 
+
 def generar_distribucion(ingresos, gastos, tl, margen, ratio, cmeses, ns, gastos_mes, loc):
     ocio=gastos.get('ocio',0); ahorro_act=gastos.get('ahorro',0)
     transporte=gastos.get('transporte',0); deudas=gastos.get('deudas',0)
-    movimientos=[]
+    vivienda=gastos.get('vivienda',0)
+    candidatos=[]
     pct_ocio   = ocio/ingresos*100 if ingresos>0 else 0
     pct_ahorro = ahorro_act/ingresos*100 if ingresos>0 else 0
     pct_trans  = transporte/ingresos*100 if ingresos>0 else 0
- 
-    if pct_ocio>10:
-        recorte=round(ocio*0.22)
-        movimientos.append({'titulo':u'Reducir el ocio un 22% sin sentirlo','ahorro':recorte,
-            'motivo':u'El ocio representa el '+str(round(pct_ocio))+u'% de tus ingresos, por encima del 10% recomendado. Un recorte del 22% equivale a '+str(recorte)+u' '+EUR+u'/mes y casi nunca se nota: revisar suscripciones activas, cocinar en casa 2 veces m\u00e1s por semana. En 12 meses son '+str(recorte*12)+u' '+EUR+u' que pasan al colch\u00f3n.'})
- 
-    ahorro_ideal=round(ingresos*0.15)
-    if pct_ahorro<12 and ahorro_ideal>ahorro_act:
-        extra=ahorro_ideal-ahorro_act
-        meses_ns=round((ns-cmeses*gastos_mes)/ahorro_ideal) if ahorro_ideal>0 and cmeses<3 else 0
-        movimientos.append({'titulo':u'Subir el ahorro sistem\u00e1tico al 15%','ahorro':-extra,
-            'motivo':u'Ahora destinas el '+str(round(pct_ahorro))+u'% al ahorro, por debajo del 15% m\u00ednimo recomendado. Subir a '+str(ahorro_ideal)+u' '+EUR+u'/mes no se nota si se automatiza el d\u00eda de cobro. En '+str(meses_ns)+u' meses llegar\u00edas a 3 meses de colch\u00f3n cubiertos.'})
- 
-    if pct_trans>7:
-        ahorro_t=round(transporte*0.15)
-        movimientos.append({'titulo':u'Optimizar el coste de transporte un 15%','ahorro':ahorro_t,
-            'motivo':u'El transporte supone el '+str(round(pct_trans))+u'% de tus ingresos. Revisar el seguro del coche cada a\u00f1o (ahorro medio 18%), usar Geoportal Carburantes en '+loc+u' (8-12 '+EUR+u'/mes) y valorar el transporte p\u00fablico para trayectos cortos puede liberar '+str(ahorro_t)+u' '+EUR+u'/mes.'})
- 
-    if deudas>0 and ratio>48:
-        movimientos.append({'titulo':u'Acelerar el fin de las deudas','ahorro':0,
-            'motivo':u'Con '+str(round(deudas))+u' '+EUR+u'/mes en cuotas y ratio al '+str(round(ratio))+u'%, cada deuda que terminas mejora el ratio directamente. Pregunta a tu banco por amortizaci\u00f3n anticipada: incluso 50-100 '+EUR+u'/mes extra adelanta el fin meses antes.'})
- 
-    if not movimientos:
-        movimientos.append({'titulo':u'Subir el colch\u00f3n al nivel \u00f3ptimo de 6 meses','ahorro':round(margen*0.4),
-            'motivo':u'Tu distribuci\u00f3n es sana. Destinar el 40% del margen libre ('+str(round(margen*0.4))+u' '+EUR+u'/mes) al colch\u00f3n hasta llegar a 6 meses cubiertos cambia completamente tu exposici\u00f3n al riesgo.'})
- 
-    return movimientos[:3]
- 
+    pct_viv    = vivienda/ingresos*100 if ingresos>0 else 0
+    ahorro_ideal = round(ingresos*0.15)
+
+    # 1. Ocio
+    recorte=round(ocio*0.22) if ocio>0 else round(ingresos*0.02)
+    candidatos.append({'titulo':u'Auditar el ocio y las suscripciones','ahorro':recorte,'prioridad':1 if pct_ocio>10 else 3,
+        'motivo':u'El ocio y las suscripciones son la categoría donde más margen se esconde sin notarlo. Representa el '+str(round(pct_ocio))+u'% de tus ingresos. Un recorte del 22% equivale a '+str(recorte)+u' '+EUR+u'/mes sin cambiar la calidad de vida: auditar suscripciones activas que no se usan (media de 4-5 por persona en España), cocinar en casa 2 veces más por semana, y sustituir una salida mensual por una alternativa de bajo coste. El efecto en 12 meses: '+str(recorte*12)+u' '+EUR+u' adicionales que pueden ir directamente al colchón de seguridad, equivalente a '+str(round(recorte*12/max(gastos_mes,1),1))+u' meses extra de cobertura.'})
+
+    # 2. Ahorro sistematico
+    extra=max(ahorro_ideal-ahorro_act, round(ingresos*0.03))
+    meses_ns=round((ns-cmeses*gastos_mes)/ahorro_ideal) if ahorro_ideal>0 and cmeses<3 else 0
+    candidatos.append({'titulo':u'Automatizar el ahorro al 15% el día de cobro','ahorro':-extra,'prioridad':1 if pct_ahorro<12 else 4,
+        'motivo':u'Ahora destinas el '+str(round(pct_ahorro))+u'% al ahorro. El Banco de España recomienda el 15% como mínimo para construir seguridad financiera real. La diferencia son '+str(extra)+u' '+EUR+u' más al mes, que se convierten en invisibles si se domicilian automáticamente el mismo día de cobro, antes de que el dinero llegue a la cuenta corriente. El efecto compuesto es doble: llegas antes al colchón mínimo'+(u' (en '+str(meses_ns)+u' meses con este ritmo)' if meses_ns>0 else u'')+u' y cambias tu relación con el dinero porque empiezas a pagarte primero a ti mismo, que es el principio más sólido de la educación financiera personal.'})
+
+    # 3. Transporte
+    ahorro_t=round(transporte*0.15) if transporte>0 else round(ingresos*0.01)
+    candidatos.append({'titulo':u'Reducir el coste de transporte un 15%','ahorro':ahorro_t,'prioridad':1 if pct_trans>7 else 5,
+        'motivo':u'El transporte supone el '+str(round(pct_trans))+u'% de tus ingresos. Hay tres palancas que no requieren cambiar hábitos: revisar el seguro del coche cada año sin cambiar cobertura ahorra de media un 18% (entre 80 y 150 '+EUR+u' anuales); usar la app Geoportal Carburantes de la CNMC para localizar las gasolineras más baratas de '+loc+u' ahorra entre 8 y 15 '+EUR+u'/mes; y valorar el transporte público para trayectos cortos y recurrentes. Resultado potencial: '+str(ahorro_t)+u' '+EUR+u'/mes liberados sin impacto real en la movilidad diaria.'})
+
+    # 4. Deudas
+    if deudas>0:
+        candidatos.append({'titulo':u'Estrategia de bola de nieve para las deudas','ahorro':0,'prioridad':1 if ratio>48 else 4,
+            'motivo':u'Con '+str(round(deudas))+u' '+EUR+u'/mes en cuotas y un ratio del '+str(round(ratio))+u'%, cada deuda que terminas mejora el ratio directamente. La estrategia de bola de nieve consiste en concentrar el esfuerzo extra en la deuda con el tipo de interés más alto primero. Incluso 50-100 '+EUR+u'/mes de amortización anticipada puede adelantar el fin varios meses, ahorrando intereses equivalentes a 1-2 cuotas completas. Cuando termine la primera deuda, destina esa cuota íntegra a atacar la siguiente: es el momento donde el efecto se multiplica y la sensación de control financiero cambia radicalmente.'})
+
+    # 5. Colchon si ya todo bien
+    colchon_obj = round(gastos_mes*6)
+    falta_colchon = max(colchon_obj - round(cmeses*gastos_mes), 0)
+    aporte_colchon = round(margen*0.4) if margen>0 else round(ingresos*0.05)
+    meses_colchon = round(falta_colchon/aporte_colchon) if aporte_colchon>0 and falta_colchon>0 else 0
+    candidatos.append({'titulo':u'Construir el colchón de 6 meses','ahorro':-aporte_colchon,'prioridad':2 if cmeses<3 else 5,
+        'motivo':u'El colchón de emergencia es la base de cualquier finanza sana. Ahora tienes '+str(round(cmeses,1))+u' meses cubiertos; el objetivo mínimo son 3, el óptimo son 6 ('+str(round(colchon_obj)).replace("'","")+u' '+EUR+u'). Destinar '+str(aporte_colchon)+u' '+EUR+u'/mes al colchón'+(u' te permitiría llegar al objetivo en '+str(meses_colchon)+u' meses' if meses_colchon>0 else u' acelera el proceso')+u'. Con 6 meses cubiertos, cualquier imprevisto — pérdida de empleo, avería grande, gasto médico — deja de ser una crisis y se convierte en una decisión tranquila que puedes tomar sin presión.'})
+
+    # Ordenar por prioridad y devolver los 3 mejores
+    candidatos.sort(key=lambda x: x['prioridad'])
+    return candidatos[:3]
+
 def generate_pdf(data):
     """Genera el PDF y devuelve los bytes."""
     buf = io.BytesIO()
- 
+
     color=data.get('color','verde'); nombre=data.get('nombre','Usuario')
     ciudad=data.get('ciudad',''); pais=data.get('pais',u'Espa\u00f1a')
     tipo=data.get('tipo_gasto','otro')
@@ -125,10 +134,10 @@ def generate_pdf(data):
     gastos_mes=float(data.get('gastos_mes', ns/3 if ns>0 else 1))
     punch=data.get('punch',''); gastos_data=data.get('gastos_desglose',{})
     noticias=data.get('noticias',[])
- 
+
     SC = VERDE if color=='verde' else (AMAR if color=='amarillo' else ROJO)
     SL = VERDE_L if color=='verde' else (AMAR_L if color=='amarillo' else ROJO_L)
- 
+
     tipo_labels={'hijo':u'Guarden\u00eda/hijo','vivienda':'Vivienda','coche':'Coche',
                  'formacion':u'Formaci\u00f3n','capricho':'Capricho','otro':'Gasto analizado'}
     tl = tipo_labels.get(tipo,'Gasto analizado')
@@ -139,17 +148,17 @@ def generate_pdf(data):
         'rojo':   u'No lo har\u00eda todav\u00eda.'
     }
     emoji_char = u'\u2713' if color=='verde' else ('!' if color=='amarillo' else u'\u2717')
- 
+
     c = canvas.Canvas(buf, pagesize=A4)
     c.setTitle(u"Tu informe financiero \u2014 melopuedopermitir.com")
- 
+
     # ── PÁG 1 ────────────────────────────────────────
     c.setFillColor(BG); c.rect(0,0,W,H,fill=1,stroke=0)
     c.setFillColor(SC); c.rect(0,0,7*mm,H,fill=1,stroke=0)
     c.setFillColor(SC); c.rect(0,H-1*mm,W,1*mm,fill=1,stroke=0)
     c.setFillColor(INK3); c.setFont(F,7)
     c.drawRightString(W-MX, H-8*mm, 'melopuedopermitir.com')
- 
+
     c.setFillColor(INK); c.setFont(FB,42)
     c.drawString(14*mm, H-38*mm, nombre)
     sub_parts=[]
@@ -160,7 +169,7 @@ def generate_pdf(data):
     c.drawString(14*mm, H-47*mm, u'  \u00b7  '.join(sub_parts))
     c.setStrokeColor(BORDER); c.setLineWidth(0.5)
     c.line(14*mm, H-52*mm, W-MX, H-52*mm)
- 
+
     # Veredicto
     VER_BOT=H-76*mm; VER_H=21*mm
     c.setFillColor(SC); c.roundRect(14*mm,VER_BOT,CONTENT_W+6*mm,VER_H,3*mm,fill=1,stroke=0)
@@ -175,7 +184,7 @@ def generate_pdf(data):
     c.setFillColor(WHITE); c.setFont(F,8.5)
     for i,ln in enumerate(punch_lns[:1]):
         c.drawString(TEXT_X,VER_BOT+VER_H-14.5*mm,ln)
- 
+
     # Indicadores
     IND_BOT=H-104*mm; IND_H=24*mm; IND_W=(CONTENT_W+6*mm-2*SP_XS)/3
     inds=[
@@ -195,7 +204,7 @@ def generate_pdf(data):
             c.drawCentredString(ix+IND_W/2,IND_BOT+10*mm-j*7,ll)
         c.setFillColor(INK4); c.setFont(FL,6)
         c.drawCentredString(ix+IND_W/2,IND_BOT+2.5*mm,sublbl)
- 
+
     # NS
     NS_BOT=H-128*mm; NS_H=20*mm
     c.setFillColor(INK); c.roundRect(14*mm,NS_BOT,CONTENT_W+6*mm,NS_H,3*mm,fill=1,stroke=0)
@@ -218,12 +227,12 @@ def generate_pdf(data):
     c.setFillColor(HexColor('#555555')); c.setFont(F,5.5)
     c.drawString(BX,BBY-4*mm,'0'); c.drawCentredString(BX+BW/2,BBY-4*mm,'3 meses')
     c.drawRightString(BX+BW,BBY-4*mm,'6+')
- 
+
     # Barras
     TITULO_Y=NS_BOT-SP_LG; BARRA_Y=TITULO_Y-SP_MD
     c.setFillColor(INK3); c.setFont(FM,7)
     c.drawString(14*mm,TITULO_Y,u'AS\u00cd SE REPARTE TU DINERO CADA MES')
- 
+
     cats=[
         ('Vivienda',    gastos_data.get('vivienda',0),   HexColor('#4A7FA5')),
         ('Transporte',  gastos_data.get('transporte',0), HexColor('#5A9A7A')),
@@ -236,7 +245,7 @@ def generate_pdf(data):
     cats=[(n,v,col) for n,v,col in cats if v>0]
     BAR_X=14*mm+28*mm; BAR_AREA=CONTENT_W+6*mm-28*mm-30*mm
     BAR_H=7*mm; BAR_GAP=4*mm; by=BARRA_Y
- 
+
     for cat_name,val,col in cats:
         if by<MY_BOT+6*mm: break
         pct_b=round(val/ingresos*100) if ingresos>0 else 0
@@ -251,7 +260,7 @@ def generate_pdf(data):
         c.setFillColor(INK2); c.setFont(FM,7.5)
         c.drawString(BAR_X+BAR_AREA+3*mm,by+1.8*mm,label)
         by-=(BAR_H+BAR_GAP)
- 
+
     by-=2*mm
     c.setStrokeColor(BORDER); c.setLineWidth(0.35)
     c.line(14*mm,by+3*mm,W-MX,by+3*mm)
@@ -260,9 +269,9 @@ def generate_pdf(data):
     c.drawString(14*mm,by-1*mm,u'Ingresos totales: '+str(round(ingresos))+u' '+EUR)
     c.setFillColor(VERDE if mrg>=0 else ROJO)
     c.drawRightString(W-MX,by-1*mm,(u'Margen libre: +' if mrg>=0 else u'D\u00e9ficit: ')+str(round(abs(mrg)))+u' '+EUR+u'/mes')
- 
+
     footer_line(c,1,4); c.showPage()
- 
+
     # ── PÁG 2 ANÁLISIS ───────────────────────────────
     c.setFillColor(BG); c.rect(0,0,W,H,fill=1,stroke=0)
     c.setFillColor(SC); c.rect(0,0,7*mm,H,fill=1,stroke=0)
@@ -276,7 +285,7 @@ def generate_pdf(data):
     c.drawString(14*mm,H-35*mm,u'An\u00e1lisis personalizado con tus datos concretos')
     c.setStrokeColor(BORDER); c.setLineWidth(0.4)
     c.line(14*mm,H-40*mm,W-MX,H-40*mm)
- 
+
     bloques_map={
         'amarillo':[
             (u'El ratio del '+str(round(ratio))+u'% ha cruzado el l\u00edmite recomendado',
@@ -326,9 +335,9 @@ def generate_pdf(data):
         for ln in lns:
             if y<MY_BOT: break
             y-=10.5; c.drawString(14*mm+18*mm,y,ln)
- 
+
     footer_line(c,2,4); c.showPage()
- 
+
     # ── PÁG 3 DISTRIBUCIÓN ───────────────────────────
     c.setFillColor(BG); c.rect(0,0,W,H,fill=1,stroke=0)
     c.setFillColor(SC); c.rect(0,0,7*mm,H,fill=1,stroke=0)
@@ -342,7 +351,7 @@ def generate_pdf(data):
     c.drawString(14*mm,H-35*mm,u'Redistribuci\u00f3n inteligente sin tocar lo esencial')
     c.setStrokeColor(BORDER); c.setLineWidth(0.4)
     c.line(14*mm,H-40*mm,W-MX,H-40*mm)
- 
+
     intro=u'Analizando tu desglose real, estos son los movimientos concretos que har\u00eda con tu dinero. No para recortarte la vida \u2014 sino para que cada euro trabaje mejor para ti y construyas seguridad financiera real sin sacrificar lo que importa.'
     y=H-48*mm
     for ln in wrap(c,intro,F,9,CONTENT_W):
@@ -350,7 +359,7 @@ def generate_pdf(data):
         c.drawString(14*mm,y,ln); y-=11.5
     y-=SP_SM; c.setStrokeColor(BORDER); c.setLineWidth(0.3)
     c.line(14*mm,y,W-MX,y); y-=SP_SM
- 
+
     movimientos=generar_distribucion(ingresos,gastos_data,tl,margen,ratio,cmeses,ns,gastos_mes,loc)
     for i,mov in enumerate(movimientos):
         if y<MY_BOT: break
@@ -379,7 +388,7 @@ def generate_pdf(data):
             if y<MY_BOT: break
             c.setFillColor(INK2); c.setFont(F,8.5)
             y-=10.5; c.drawString(14*mm+18*mm,y,ln)
- 
+
     y-=SP_LG
     total_lib=sum(m.get('ahorro',0) for m in movimientos if m.get('ahorro',0)>0)
     if total_lib>0 and y>MY_BOT+16*mm:
@@ -389,9 +398,9 @@ def generate_pdf(data):
         imp_y=y-4.5*mm
         for ln in wrap(c,impacto,FB,8.5,CONTENT_W-2*SP_MD)[:2]:
             c.drawString(14*mm+SP_MD,imp_y,ln); imp_y-=11
- 
+
     footer_line(c,3,4); c.showPage()
- 
+
     # ── PÁG 4 NOTICIAS (solo si hay noticias) ───────────
     if not noticias:
         c.save(); buf.seek(0); return buf.read()
@@ -407,7 +416,7 @@ def generate_pdf(data):
     c.drawString(14*mm,H-35*mm,u'Seleccionado para tu perfil financiero en '+loc)
     c.setStrokeColor(HexColor('#2A2A2A')); c.setLineWidth(0.4)
     c.line(14*mm,H-40*mm,W-MX,H-40*mm)
- 
+
     yn=H-50*mm
     for i,noticia in enumerate(noticias[:3]):
         if yn<40*mm: break
@@ -433,14 +442,14 @@ def generate_pdf(data):
         c.setFillColor(HexColor('#555555')); c.setFont(F,7)
         c.drawString(14*mm,yn,noticia.get('fuente','')+u' \u00b7 '+noticia.get('fecha',''))
         yn-=SP_SM
- 
+
     c.setFillColor(SC); c.roundRect(14*mm,26*mm,CONTENT_W+6*mm,15*mm,3*mm,fill=1,stroke=0)
     c.setFillColor(DARK); c.setFont(FB,10)
     c.drawCentredString(W/2,33*mm,u'"Este an\u00e1lisis es tuyo. Gu\u00e1rdalo, \u00fasalo, decide con criterio."')
     c.setFillColor(HexColor('#444444')); c.setFont(F,6.5)
     c.drawString(14*mm,11*mm,u'melopuedopermitir.com  \u00b7  Banco de Espa\u00f1a \u00b7 OCDE \u00b7 BCE')
     c.drawRightString(W-MX,11*mm,'4 / 4')
- 
+
     c.showPage(); c.save()
     buf.seek(0)
     return buf.read()
