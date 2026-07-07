@@ -13,36 +13,35 @@ import anthropic
 import re as _re
  
 def generar_noticias(user_data):
-    """Genera noticias personalizadas usando Claude con web search."""
+    """Genera noticias personalizadas usando Claude."""
     try:
-        color     = user_data.get('color', 'verde')
-        ciudad    = user_data.get('ciudad', 'España')
-        tipo      = user_data.get('tipo_gasto', 'otro')
-        ingresos  = user_data.get('ingresos', 0)
-        ratio     = user_data.get('ratio', 0)
+        ciudad   = user_data.get('ciudad', 'España')
+        tipo     = user_data.get('tipo_gasto', 'otro')
+        ingresos = user_data.get('ingresos', 0)
+        ratio    = user_data.get('ratio', 0)
+        color    = user_data.get('color', 'verde')
  
         tipo_labels = {'hijo':'guardería o tener un hijo','vivienda':'vivienda o alquiler',
                       'coche':'coche','formacion':'formación','capricho':'capricho','otro':'gasto personal'}
         tl = tipo_labels.get(tipo, 'gasto personal')
  
         prompt = (
-            'Eres un asistente financiero personal. El usuario vive en '+ciudad+', '
-            'analiza si puede permitirse '+tl+', tiene ingresos de '+str(round(ingresos))+' euros al mes '
-            'y un ratio de compromisos del '+str(round(ratio))+'%. '
-            'Busca en internet 3 noticias MUY recientes (últimas semanas) relevantes para esta persona. '
-            'Responde SOLO con JSON válido, sin texto adicional, en este formato exacto:\n'
-            '[{"contexto":"Por qué le afecta (max 8 palabras)","titular":"Titular con gancho que le hable directamente (max 15 palabras)","desarrollo":"2-3 frases explicando por qué importa para su situación concreta","fuente":"Nombre del medio","fecha":"hace X días/hoy/esta semana"}]'
+            'Eres un asesor financiero personal experto en el mercado español. '
+            'El usuario vive en '+ciudad+', analiza si puede permitirse '+tl+', '
+            'tiene ingresos de '+str(round(ingresos))+' euros al mes y ratio del '+str(round(ratio))+'%. '
+            'Genera 3 noticias relevantes y recientes (2024-2025) para esta persona concreta. '
+            'Responde SOLO con JSON válido, sin texto adicional:\n'
+            '[{"contexto":"Por qué le afecta","titular":"Titular con gancho directo","desarrollo":"2-3 frases explicando por qué importa para su situación","fuente":"Nombre del medio","fecha":"2025"}]'
         )
  
         client = anthropic.Anthropic(api_key=os.environ.get('ANTHROPIC_API_KEY', ''))
         response = client.messages.create(
             model='claude-sonnet-4-6',
             max_tokens=1500,
-            tools=[{"type": "web_search_20250305", "name": "web_search"}],
             messages=[{"role": "user", "content": prompt}]
         )
  
-        text = ''.join(block.text for block in response.content if hasattr(block, 'text'))
+        text = response.content[0].text
         start = text.find('['); end = text.rfind(']')
         if start >= 0 and end >= 0:
             noticias = json.loads(text[start:end+1])
