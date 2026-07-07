@@ -57,12 +57,25 @@ def crear_sesion_pago():
     try:
         data = request.get_json()
         user_data = data.get('user_data', {})
+        # Stripe limita cada campo de metadata a 500 chars
+        # Mandamos los datos en campos separados para no perder nada
+        import json as _json
+        gd = user_data.get('gastos_desglose', {})
         metadata = {
-            'nombre':     str(user_data.get('nombre', ''))[:100],
-            'ciudad':     str(user_data.get('ciudad', ''))[:100],
-            'color':      str(user_data.get('color', 'verde')),
-            'tipo_gasto': str(user_data.get('tipo_gasto', 'otro')),
-            'datos_json': json.dumps(user_data)[:4000],
+            'nombre':      str(user_data.get('nombre', ''))[:100],
+            'ciudad':      str(user_data.get('ciudad', ''))[:100],
+            'pais':        str(user_data.get('pais', 'España'))[:50],
+            'color':       str(user_data.get('color', 'verde'))[:20],
+            'tipo_gasto':  str(user_data.get('tipo_gasto', 'otro'))[:20],
+            'ratio':       str(user_data.get('ratio', 0)),
+            'margen':      str(user_data.get('margen', 0)),
+            'cmeses':      str(user_data.get('cmeses', 0)),
+            'ns':          str(user_data.get('ns', 0)),
+            'ingresos':    str(user_data.get('ingresos', 0)),
+            'gasto_nuevo': str(user_data.get('gasto_nuevo', 0)),
+            'gastos_mes':  str(user_data.get('gastos_mes', 0)),
+            'punch':       str(user_data.get('punch', ''))[:490],
+            'gastos_json': _json.dumps(gd)[:490],
         }
         email = user_data.get('email', '').strip()
         print(f"==> crear_sesion_pago: nombre={user_data.get('nombre','')}, email='{email}', color={user_data.get('color','')}, ingresos={user_data.get('ingresos',0)}")
@@ -112,16 +125,29 @@ def webhook_stripe():
  
         print(f"==> Pago completado. Email: {email}, Nombre: {nombre}")
  
-        datos_json = metadata.get('datos_json', '{}')
+        # Reconstruir user_data desde los campos de metadata
         try:
-            user_data = json.loads(datos_json)
+            gastos_desglose = json.loads(metadata.get('gastos_json', '{}'))
         except:
-            user_data = {}
+            gastos_desglose = {}
  
-        if not user_data.get('nombre'):
-            user_data['nombre'] = nombre
-        if not user_data.get('color'):
-            user_data['color'] = 'verde'
+        user_data = {
+            'nombre':      metadata.get('nombre', nombre),
+            'ciudad':      metadata.get('ciudad', ''),
+            'pais':        metadata.get('pais', 'España'),
+            'color':       metadata.get('color', 'verde'),
+            'tipo_gasto':  metadata.get('tipo_gasto', 'otro'),
+            'ratio':       float(metadata.get('ratio', 0)),
+            'margen':      float(metadata.get('margen', 0)),
+            'cmeses':      float(metadata.get('cmeses', 0)),
+            'ns':          int(float(metadata.get('ns', 0))),
+            'ingresos':    float(metadata.get('ingresos', 0)),
+            'gasto_nuevo': float(metadata.get('gasto_nuevo', 0)),
+            'gastos_mes':  float(metadata.get('gastos_mes', 0)),
+            'punch':       metadata.get('punch', ''),
+            'gastos_desglose': gastos_desglose,
+            'noticias':    [],
+        }
  
         if email:
             try:
