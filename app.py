@@ -64,9 +64,10 @@ def crear_sesion_pago():
             'tipo_gasto': str(user_data.get('tipo_gasto', 'otro')),
             'datos_json': json.dumps(user_data)[:4000],
         }
-        session = stripe.checkout.Session.create(
-            payment_method_types=['card'],
-            line_items=[{
+        email = user_data.get('email', '').strip()
+        session_params = {
+            'payment_method_types': ['card'],
+            'line_items': [{
                 'price_data': {
                     'currency': 'eur',
                     'product_data': {'name': 'Informe financiero personalizado'},
@@ -74,12 +75,15 @@ def crear_sesion_pago():
                 },
                 'quantity': 1,
             }],
-            mode='payment',
-            success_url=data.get('success_url', 'https://melopuedopermitir.com?pago=ok'),
-            cancel_url=data.get('cancel_url', 'https://melopuedopermitir.com?pago=cancelado'),
-            customer_email=user_data.get('email', ''),
-            metadata=metadata,
-        )
+            'mode': 'payment',
+            'success_url': data.get('success_url', 'https://melopuedopermitir.com?pago=ok'),
+            'cancel_url': data.get('cancel_url', 'https://melopuedopermitir.com?pago=cancelado'),
+            'metadata': metadata,
+        }
+        # Solo mandamos email si es válido
+        if email and '@' in email and '.' in email:
+            session_params['customer_email'] = email
+        session = stripe.checkout.Session.create(**session_params)
         return jsonify({'session_id': session.id, 'url': session.url})
     except Exception as e:
         print(f"ERROR crear_sesion_pago: {e}")
@@ -101,8 +105,8 @@ def webhook_stripe():
     if event['type'] == 'checkout.session.completed':
         session  = event['data']['object']
         metadata = session.get('metadata', {})
-        email    = (session.get('customer_email') or
-                   session.get('customer_details', {}).get('email', ''))
+        email    = (session.get('customer_details', {}).get('email', '') or
+                   session.get('customer_email', ''))
         nombre   = metadata.get('nombre', 'Usuario')
  
         print(f"==> Pago completado. Email: {email}, Nombre: {nombre}")
