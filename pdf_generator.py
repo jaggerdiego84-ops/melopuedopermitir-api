@@ -392,7 +392,9 @@ def generate_pdf(data):
  
     footer_line(c,3,4); c.showPage()
  
-    # ── PÁG 4 NOTICIAS ───────────────────────────────
+    # ── PÁG 4 NOTICIAS (solo si hay noticias) ───────────
+    if not noticias:
+        c.save(); buf.seek(0); return buf.read()
     c.setFillColor(DARK); c.rect(0,0,W,H,fill=1,stroke=0)
     c.setFillColor(SC); c.rect(0,0,7*mm,H,fill=1,stroke=0)
     c.setFillColor(SC); c.rect(0,H-1*mm,W,1*mm,fill=1,stroke=0)
