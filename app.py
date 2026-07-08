@@ -8,10 +8,10 @@ import threading
 import time
 import urllib.request
 from pdf_generator import generate_pdf
- 
+
 import anthropic
 import re as _re
- 
+
 def generar_noticias(user_data):
     """Genera noticias personalizadas usando Claude."""
     try:
@@ -20,25 +20,25 @@ def generar_noticias(user_data):
         ingresos = user_data.get('ingresos', 0)
         ratio    = user_data.get('ratio', 0)
         color    = user_data.get('color', 'verde')
- 
+
         tipo_labels = {'hijo':'guardería o tener un hijo','vivienda':'vivienda o alquiler',
                       'coche':'coche','formacion':'formación','capricho':'capricho','otro':'gasto personal'}
         tl = tipo_labels.get(tipo, 'gasto personal')
- 
+
         prompt = (
             'Usuario en '+ciudad+', analiza '+tl+', ingresos '+str(round(ingresos))+' euros, ratio '+str(round(ratio))+'%. '
             'Dame 3 noticias financieras españolas recientes relevantes para esta persona. '
             'Solo JSON, sin texto extra: '
             '[{"contexto":"por que le afecta","titular":"titular gancho directo","desarrollo":"3-4 frases con datos y cifras concretas relevantes para esta persona","fuente":"medio","fecha":"2025"}]'
         )
- 
+
         client = anthropic.Anthropic(api_key=os.environ.get('ANTHROPIC_API_KEY', ''))
         response = client.messages.create(
             model='claude-sonnet-4-6',
             max_tokens=1200,
             messages=[{"role": "user", "content": prompt}]
         )
- 
+
         text = response.content[0].text
         start = text.find('['); end = text.rfind(']')
         if start >= 0 and end >= 0:
@@ -47,17 +47,17 @@ def generar_noticias(user_data):
     except Exception as e:
         print(f"==> Error generando noticias: {e}")
     return []
- 
- 
- 
+
+
+
 app = Flask(__name__)
 CORS(app)
- 
+
 stripe.api_key        = os.environ.get('STRIPE_SECRET_KEY', '')
 STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET', '')
 RESEND_API_KEY        = os.environ.get('RESEND_API_KEY', '')
 resend.api_key        = RESEND_API_KEY
- 
+
 # ── KEEP ALIVE — ping cada 14 minutos para no dormir en Render free ──
 def keep_alive():
     while True:
@@ -68,13 +68,13 @@ def keep_alive():
             print("==> Keep-alive ping OK")
         except Exception as e:
             print(f"==> Keep-alive ping failed: {e}")
- 
+
 threading.Thread(target=keep_alive, daemon=True).start()
- 
+
 @app.route('/health', methods=['GET'])
 def health():
     return jsonify({'status': 'ok', 'service': 'melopuedopermitir.com'})
- 
+
 @app.route('/generar-pdf', methods=['POST'])
 def generar_pdf():
     try:
@@ -92,7 +92,7 @@ def generar_pdf():
         print(f"ERROR generar_pdf: {e}")
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
- 
+
 @app.route('/crear-sesion-pago', methods=['POST'])
 def crear_sesion_pago():
     try:
@@ -144,34 +144,34 @@ def crear_sesion_pago():
         print(f"ERROR crear_sesion_pago: {e}")
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
- 
+
 @app.route('/webhook-stripe', methods=['POST'])
 def webhook_stripe():
     payload    = request.get_data()
     sig_header = request.headers.get('Stripe-Signature')
- 
+
     try:
         event = stripe.Webhook.construct_event(payload, sig_header, STRIPE_WEBHOOK_SECRET)
         print(f"==> Evento verificado: {event['type']}")
     except Exception as e:
         print(f"==> ERROR verificando webhook: {e}")
         return jsonify({'error': str(e)}), 400
- 
+
     if event['type'] == 'checkout.session.completed':
         session  = event['data']['object']
         metadata = session.get('metadata', {})
         email    = (session.get('customer_details', {}).get('email', '') or
                    session.get('customer_email', ''))
         nombre   = metadata.get('nombre', 'Usuario')
- 
+
         print(f"==> Pago completado. Email: {email}, Nombre: {nombre}")
- 
+
         # Reconstruir user_data desde los campos de metadata
         try:
             gastos_desglose = json.loads(metadata.get('gastos_json', '{}'))
         except:
             gastos_desglose = {}
- 
+
         user_data = {
             'nombre':      metadata.get('nombre', nombre),
             'ciudad':      metadata.get('ciudad', ''),
@@ -189,7 +189,7 @@ def webhook_stripe():
             'gastos_desglose': gastos_desglose,
             'noticias':    [],
         }
- 
+
         if email:
             try:
                 # EMAIL 1: PDF del informe (inmediato)
@@ -199,7 +199,7 @@ def webhook_stripe():
                 pdf_bytes = generate_pdf(user_data)
                 pdf_b64   = base64.b64encode(pdf_bytes).decode('utf-8')
                 print(f"==> PDF generado ({len(pdf_bytes)} bytes). Enviando email 1...")
- 
+
                 params1 = {
                     "from": "informe@melopuedopermitir.com",
                     "to":   [email],
@@ -227,7 +227,7 @@ def webhook_stripe():
                 }
                 r1 = resend.Emails.send(params1)
                 print(f"==> Email 1 enviado OK: {r1}")
- 
+
                 # EMAIL 2: Noticias personalizadas en HTML (en hilo separado)
                 def enviar_noticias(email, nombre, user_data):
                     try:
@@ -238,12 +238,12 @@ def webhook_stripe():
                         if not noticias:
                             print("==> Sin noticias, no se envía email 2")
                             return
- 
+
                         ciudad = user_data.get('ciudad', 'España')
                         tipo_labels = {'hijo':'guardería/hijo','vivienda':'vivienda','coche':'coche',
                                       'formacion':'formación','capricho':'capricho','otro':'gasto'}
                         tl = tipo_labels.get(user_data.get('tipo_gasto','otro'), 'gasto')
- 
+
                         noticias_html = ''
                         for n in noticias:
                             noticias_html += f"""
@@ -254,7 +254,7 @@ def webhook_stripe():
                                 <p style="font-size:11px;color:#9A9188;margin:0">{n.get('fuente','')} · {n.get('fecha','')}</p>
                             </div>
                             """
- 
+
                         params2 = {{
                             "from": "informe@melopuedopermitir.com",
                             "to":   [email],
@@ -277,18 +277,18 @@ def webhook_stripe():
                         print(f"==> Email 2 noticias enviado OK: {{r2}}")
                     except Exception as e2:
                         print(f"==> ERROR email 2 noticias: {{e2}}")
- 
-                import threading as _th
-                _th.Thread(target=enviar_noticias, args=(email, nombre, user_data.copy()), daemon=True).start()
- 
+
+                # Generar y enviar noticias en el mismo proceso (Stripe espera hasta 30s)
+                enviar_noticias(email, nombre, user_data.copy())
+
             except Exception as e:
                 print(f"==> ERROR: {e}")
                 traceback.print_exc()
         else:
             print(f"==> ERROR: sin email del cliente")
- 
+
     return jsonify({'status': 'ok'})
- 
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
