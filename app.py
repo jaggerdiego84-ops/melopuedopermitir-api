@@ -107,9 +107,23 @@ def _enviar_email_noticias(email, nombre, user_data):
         print("==> Generando noticias para " + email + "...")
         noticias = generar_noticias(user_data)
         gc.collect()
+        print("==> Noticias generadas: " + str(len(noticias)))
         if not noticias:
-            print("==> Sin noticias, no se envia email 2")
-            return
+            # Mandar email aunque no haya noticias - contenido de respaldo
+            noticias = [
+                {"contexto": "Tu ratio de compromisos financieros",
+                 "titular": "La regla del 50%: por qué tus compromisos fijos no deberían superar la mitad de tus ingresos",
+                 "desarrollo": "El Banco de España establece que los compromisos financieros fijos de un hogar no deberían superar el 50% de los ingresos netos mensuales. Por encima de ese umbral, la capacidad de absorber imprevistos se reduce drásticamente. Revisar periódicamente este ratio es una de las acciones más importantes para mantener la salud financiera a largo plazo.",
+                 "fuente": "Banco de España", "fecha": "2025", "url": ""},
+                {"contexto": "Construir tu colchón de emergencia",
+                 "titular": "Tres meses de gastos: el colchón mínimo que separa un imprevisto de una crisis",
+                 "desarrollo": "Las principales organizaciones financieras internacionales, incluida la OCDE, recomiendan mantener un fondo de emergencia equivalente a entre tres y seis meses de gastos. Este colchón permite afrontar situaciones imprevistas sin recurrir a deuda, que suele ser el inicio de una espiral financiera difícil de revertir.",
+                 "fuente": "OCDE", "fecha": "2025", "url": ""},
+                {"contexto": "Optimizar tu ahorro mensual",
+                 "titular": "El ahorro automático funciona: por qué domiciliar el ahorro el día de cobro cambia los resultados",
+                 "desarrollo": "Numerosos estudios de economía conductual demuestran que las personas que automatizan su ahorro el mismo día de cobro, antes de que el dinero llegue a la cuenta corriente, ahorran consistentemente más que quienes intentan ahorrar lo que sobra a final de mes. El principio es sencillo: págarte primero a ti mismo.",
+                 "fuente": "Economía conductual - NBER", "fecha": "2025", "url": ""}
+            ]
 
         ciudad = user_data.get("ciudad", "Espana")
         tipo = user_data.get("tipo_gasto", "otro")
@@ -322,7 +336,6 @@ def webhook_stripe():
                     "html": f"""
                     <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:40px 20px;background:#F8F5F0">
                         <div style="background:#17140F;color:white;padding:24px 28px;border-radius:8px;margin-bottom:24px">
-                            <p style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;opacity:.5;margin-bottom:4px">MELOPUEDOPERMITIR.COM</p>
                             <h1 style="font-size:26px;margin:0">Aquí está tu informe, {nombre}.</h1>
                         </div>
                         <p style="color:#4A4540;font-size:15px;line-height:1.7">
