@@ -67,7 +67,7 @@ def hr(c, y, x1=None, x2=None, color=None, lw=0.3):
 
 def footer_line(c, n, total):
     c.setFillColor(INK4); c.setFont(F, 6)
-    c.drawString(14*mm, 11*mm, u'melopuedopermitir.com  \u00b7  Banco de Espa\u00f1a \u00b7 OCDE \u00b7 BCE  \u00b7  Informe personal y confidencial')
+    c.drawString(14*mm, 11*mm, u'Informaci\u00f3n basada en los est\u00e1ndares del Banco de Espa\u00f1a, OCDE y BCE  \u00b7  melopuedopermitir.com')
     c.drawRightString(W-MX, 11*mm, str(n)+' / '+str(total))
     c.setStrokeColor(BORDER); c.setLineWidth(0.2)
     c.line(14*mm, 17*mm, W-MX, 17*mm)
@@ -224,9 +224,9 @@ def generate_pdf(data):
     pct_c=min(cmeses/6.0,1.0)
     bc=VERDE if cmeses>=3 else (AMAR if cmeses>=1 else ROJO)
     c.setFillColor(bc); c.roundRect(BX,BBY,max(BW*pct_c,2.5*mm),4*mm,2*mm,fill=1,stroke=0)
-    c.setFillColor(HexColor('#555555')); c.setFont(F,5.5)
-    c.drawString(BX,BBY-4*mm,'0'); c.drawCentredString(BX+BW/2,BBY-4*mm,'3 meses')
-    c.drawRightString(BX+BW,BBY-4*mm,'6+')
+    c.setFillColor(WHITE); c.setFont(F,7.5)
+    c.drawString(BX,BBY-5.5*mm,'0'); c.drawCentredString(BX+BW/2,BBY-5.5*mm,'3 meses')
+    c.drawRightString(BX+BW,BBY-5.5*mm,'6+')
 
     # Barras
     TITULO_Y=NS_BOT-SP_LG; BARRA_Y=TITULO_Y-SP_MD
@@ -447,7 +447,7 @@ def generate_pdf(data):
     c.setFillColor(DARK); c.setFont(FB,10)
     c.drawCentredString(W/2,33*mm,u'"Este an\u00e1lisis es tuyo. Gu\u00e1rdalo, \u00fasalo, decide con criterio."')
     c.setFillColor(HexColor('#444444')); c.setFont(F,6.5)
-    c.drawString(14*mm,11*mm,u'melopuedopermitir.com  \u00b7  Banco de Espa\u00f1a \u00b7 OCDE \u00b7 BCE')
+    c.drawString(14*mm,11*mm,u'Informaci\u00f3n basada en los est\u00e1ndares del Banco de Espa\u00f1a, OCDE y BCE')
     c.drawRightString(W-MX,11*mm,'4 / 4')
 
     c.showPage(); c.save()
