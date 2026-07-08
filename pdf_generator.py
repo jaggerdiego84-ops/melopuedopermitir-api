@@ -202,7 +202,7 @@ def generate_pdf(data):
         c.setFillColor(INK3); c.setFont(F,6)
         for j,ll in enumerate(lbl.split('\n')):
             c.drawCentredString(ix+IND_W/2,IND_BOT+10*mm-j*7,ll)
-        c.setFillColor(INK4); c.setFont(FL,6)
+        c.setFillColor(INK); c.setFont(F,7.5)
         c.drawCentredString(ix+IND_W/2,IND_BOT+2.5*mm,sublbl)
 
     # NS
@@ -215,8 +215,8 @@ def generate_pdf(data):
     ns_txt=(u'3 meses de gastos ('+str(round(gastos_mes))+u' '+EUR+u'/mes \u00d7 3). '
             +(u'Tienes '+str(round(cmeses,1))+u' meses cubiertos \u2014 zona segura \u2713' if cmeses>=3
               else u'Tienes '+str(round(cmeses,1))+u' meses \u2014 objetivo: llegar a 3 meses m\u00ednimo.'))
-    ns_lns=wrap(c,ns_txt,F,7,CONTENT_W-52*mm)
-    c.setFillColor(HexColor('#999999')); c.setFont(F,7)
+    ns_lns=wrap(c,ns_txt,F,8.5,CONTENT_W-52*mm)
+    c.setFillColor(HexColor('#CCCCCC')); c.setFont(F,8.5)
     for i,ln in enumerate(ns_lns[:2]):
         c.drawString(14*mm+SP_MD,NS_BOT+NS_H-19*mm+i*(-8.5),ln)
     BX=W-MX-46*mm; BW=44*mm; BBY=NS_BOT+NS_H-13*mm
@@ -257,8 +257,8 @@ def generate_pdf(data):
         if bw_real>0:
             c.setFillColor(col); c.roundRect(BAR_X,by,bw_real,BAR_H,3.5*mm,fill=1,stroke=0)
         label=str(round(val))+u' '+EUR+u' - '+str(pct_b)+'%'
-        c.setFillColor(INK2); c.setFont(FM,7.5)
-        c.drawString(BAR_X+BAR_AREA+3*mm,by+1.8*mm,label)
+        c.setFillColor(INK2); c.setFont(FM,9)
+        c.drawString(BAR_X+BAR_AREA+2*mm,by+1.8*mm,label)
         by-=(BAR_H+BAR_GAP)
 
     by-=2*mm
@@ -330,11 +330,11 @@ def generate_pdf(data):
         c.setFillColor(INK); c.setFont(FB,10.5)
         c.drawString(14*mm+18*mm,y,tit)
         y-=3.5*mm
-        lns=wrap(c,desc,F,8.5,CONTENT_W-18*mm)
-        c.setFillColor(INK2); c.setFont(F,8.5)
+        lns=wrap(c,desc,F,10,CONTENT_W-18*mm)
+        c.setFillColor(INK2); c.setFont(F,10)
         for ln in lns:
             if y<MY_BOT: break
-            y-=10.5; c.drawString(14*mm+18*mm,y,ln)
+            y-=12.5; c.drawString(14*mm+18*mm,y,ln)
 
     footer_line(c,2,4); c.showPage()
 
@@ -384,10 +384,10 @@ def generate_pdf(data):
             c.setFillColor(SC); c.setFont(FB,7.5)
             c.drawCentredString(W-MX-tw/2,y+1*mm,tag)
         y-=3.5*mm
-        for ln in wrap(c,mov['motivo'],F,8.5,CONTENT_W-18*mm):
+        for ln in wrap(c,mov['motivo'],F,10,CONTENT_W-18*mm):
             if y<MY_BOT: break
-            c.setFillColor(INK2); c.setFont(F,8.5)
-            y-=10.5; c.drawString(14*mm+18*mm,y,ln)
+            c.setFillColor(INK2); c.setFont(F,10)
+            y-=12.5; c.drawString(14*mm+18*mm,y,ln)
 
     y-=SP_LG
     total_lib=sum(m.get('ahorro',0) for m in movimientos if m.get('ahorro',0)>0)
