@@ -38,7 +38,7 @@ def generar_noticias(user_data):
             timeout=20.0  # max 20 segundos
         )
         response = client.messages.create(
-            model='claude-haiku-4-5-20251001',  # mas rapido y barato
+            model='claude-sonnet-4-6',
             max_tokens=1200,
             messages=[{"role": "user", "content": prompt}]
         )
