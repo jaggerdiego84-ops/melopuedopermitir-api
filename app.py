@@ -54,8 +54,29 @@ def generar_noticias(user_data):
 app = Flask(__name__)
 CORS(app)
 
-# Deduplicacion de webhooks — evita procesar el mismo evento dos veces
-_eventos_procesados = set()
+# Deduplicacion de webhooks — persiste en disco para sobrevivir reinicios
+import tempfile, os as _os
+
+_DEDUP_FILE = _os.path.join(tempfile.gettempdir(), 'melopermitir_processed.txt')
+
+def _ya_procesado(key):
+    try:
+        if _os.path.exists(_DEDUP_FILE):
+            with open(_DEDUP_FILE, 'r') as f:
+                return key in f.read()
+        return False
+    except:
+        return False
+
+def _marcar_procesado(key):
+    try:
+        with open(_DEDUP_FILE, 'a') as f:
+            f.write(key + '\n')
+        # Limpiar si el archivo crece demasiado
+        if _os.path.getsize(_DEDUP_FILE) > 50000:
+            _os.remove(_DEDUP_FILE)
+    except:
+        pass
 
 stripe.api_key        = os.environ.get('STRIPE_SECRET_KEY', '')
 STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET', '')
@@ -119,7 +140,7 @@ def _enviar_email_noticias(email, nombre, user_data):
             '<div style="font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;max-width:620px;margin:0 auto;background:#F8F5F0">'
             # Header oscuro
             '<div style="background:#17140F;padding:28px 32px">'
-            '<p style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#FFFFFF;opacity:.5;margin:0 0 6px"><span style="color:#FFFFFF;text-decoration:none">MELOPUEDOPERMITIR​.COM</span></p>'
+            '<p style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,0.5);margin:0 0 6px">&#9632; melopuedopermitir</p>'
             '<h1 style="font-size:24px;color:#FFFFFF;margin:0 0 6px;line-height:1.2">Lo que está pasando<br>y te afecta, ' + nombre + '.</h1>'
             '<p style="font-size:13px;color:#FFFFFF;opacity:.6;margin:0">Seleccionado para tu perfil financiero en ' + ciudad + "</p>"
             "</div>"
@@ -239,16 +260,14 @@ def webhook_stripe():
         print(f"==> ERROR verificando webhook: {e}")
         return jsonify({'error': str(e)}), 400
 
-    # Deduplicar usando payment_intent (persiste aunque Render reintente)
+    # Deduplicar en disco — sobrevive reinicios de Render
     session_tmp = event['data']['object'] if event['type'] == 'checkout.session.completed' else {}
     dedup_key = session_tmp.get('payment_intent', '') or event.get('id', '')
-    if dedup_key and dedup_key in _eventos_procesados:
-        print("==> Evento duplicado ignorado: " + dedup_key)
-        return jsonify({'status': 'ok'})
     if dedup_key:
-        _eventos_procesados.add(dedup_key)
-    if len(_eventos_procesados) > 500:
-        _eventos_procesados.clear()
+        if _ya_procesado(dedup_key):
+            print("==> Evento duplicado ignorado: " + dedup_key)
+            return jsonify({'status': 'ok'})
+        _marcar_procesado(dedup_key)
 
     if event['type'] == 'checkout.session.completed':
         session  = event['data']['object']
