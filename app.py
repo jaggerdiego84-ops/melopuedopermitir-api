@@ -27,9 +27,10 @@ def generar_noticias(user_data):
 
         prompt = (
             'Usuario en '+ciudad+', analiza '+tl+', ingresos '+str(round(ingresos))+' euros, ratio '+str(round(ratio))+'%. '
-            'Dame 3 noticias financieras españolas recientes relevantes para esta persona. '
-            'Solo JSON, sin texto extra: '
-            '[{"contexto":"por que le afecta","titular":"titular gancho directo","desarrollo":"3-4 frases con datos y cifras concretas relevantes para esta persona","fuente":"medio","fecha":"2025"}]'
+            'Dame 5 noticias financieras espanolas recientes (2024-2025) muy relevantes para esta persona concreta. '
+            'Para cada noticia incluye una URL real del articulo si la conoces, o deja url vacia. '
+            'Solo JSON sin texto extra: '
+            '[{"contexto":"motivo concreto por el que le afecta a esta persona (1-2 frases)","titular":"titular con gancho directo","desarrollo":"4-5 frases con datos y cifras concretas","fuente":"nombre del medio","fecha":"2025","url":"https://...o vacio"}]'
         )
 
         client = anthropic.Anthropic(api_key=os.environ.get('ANTHROPIC_API_KEY', ''))
@@ -43,7 +44,7 @@ def generar_noticias(user_data):
         start = text.find('['); end = text.rfind(']')
         if start >= 0 and end >= 0:
             noticias = json.loads(text[start:end+1])
-            return noticias[:3]
+            return noticias[:5]
     except Exception as e:
         print(f"==> Error generando noticias: {e}")
     return []
@@ -87,40 +88,64 @@ def _enviar_email_noticias(email, nombre, user_data):
             return
 
         ciudad = user_data.get("ciudad", "Espana")
+        tipo = user_data.get("tipo_gasto", "otro")
+        tipo_labels = {"hijo":"guarderia/hijo","vivienda":"vivienda","coche":"coche",
+                      "formacion":"formacion","capricho":"capricho","otro":"gasto"}
+        tl = tipo_labels.get(tipo, "gasto")
 
         noticias_html = ""
-        for n in noticias:
-            ctx = n.get("contexto", "").upper()
-            tit = n.get("titular", "")
-            dev = n.get("desarrollo", "")
-            fue = n.get("fuente", "")
-            fec = n.get("fecha", "")
+        for i, n in enumerate(noticias):
+            ctx    = n.get("contexto", "")
+            tit    = n.get("titular", "")
+            dev    = n.get("desarrollo", "")
+            fue    = n.get("fuente", "")
+            fec    = n.get("fecha", "")
+            url    = n.get("url", "")
+            sep    = '<hr style="border:none;border-top:1px solid #E8E4DC;margin:24px 0">' if i > 0 else ""
+            link   = ('<a href="' + url + '" style="display:inline-block;margin-top:10px;font-size:12px;color:#6B4700;font-weight:600;text-decoration:none">Leer artículo completo →</a>' if url else "")
             noticias_html += (
-                '<div style="border-left:3px solid #6B4700;padding:0 0 0 16px;margin-bottom:28px">'
-                '<p style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#6B4700;margin:0 0 6px">' + ctx + "</p>"
-                '<h2 style="font-size:17px;color:#17140F;margin:0 0 10px;line-height:1.35">' + tit + "</h2>"
-                '<p style="font-size:14px;color:#4A4540;line-height:1.7;margin:0 0 8px">' + dev + "</p>"
-                '<p style="font-size:11px;color:#9A9188;margin:0">' + fue + " · " + fec + "</p>"
+                sep +
+                '<div style="margin-bottom:8px">'
+                '<p style="font-size:13px;font-weight:700;color:#6B4700;margin:0 0 10px;line-height:1.5;background:#FBF0DC;padding:8px 12px;border-radius:6px">' + ctx + "</p>"
+                '<h2 style="font-size:20px;color:#17140F;margin:0 0 12px;line-height:1.3;font-family:Georgia,serif">' + tit + "</h2>"
+                '<p style="font-size:15px;color:#4A4540;line-height:1.75;margin:0 0 8px">' + dev + "</p>"
+                + link +
+                '<p style="font-size:11px;color:#9A9188;margin:12px 0 0">' + fue + " · " + fec + "</p>"
                 "</div>"
             )
 
         html_body = (
-            '<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:40px 20px;background:#F8F5F0">'
-            '<div style="background:#17140F;color:white;padding:24px 28px;border-radius:8px;margin-bottom:28px">'
-            '<p style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;opacity:.5;margin-bottom:4px">MELOPUEDOPERMITIR.COM</p>'
-            '<h1 style="font-size:22px;margin:0">Lo que está pasando y te afecta, ' + nombre + '.</h1>'
-            '<p style="font-size:13px;opacity:.7;margin:8px 0 0">Seleccionado para tu perfil financiero en ' + ciudad + "</p>"
+            '<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body style="margin:0;padding:0;background:#F0EDE8">'
+            '<div style="font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;max-width:620px;margin:0 auto;background:#F8F5F0">'
+            # Header oscuro
+            '<div style="background:#17140F;padding:28px 32px">'
+            '<p style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#FFFFFF;opacity:.5;margin:0 0 6px">MELOPUEDOPERMITIR.COM</p>'
+            '<h1 style="font-size:24px;color:#FFFFFF;margin:0 0 6px;line-height:1.2">Lo que está pasando<br>y te afecta, ' + nombre + '.</h1>'
+            '<p style="font-size:13px;color:#FFFFFF;opacity:.6;margin:0">Seleccionado para tu perfil financiero en ' + ciudad + "</p>"
             "</div>"
-            + noticias_html +
-            '<p style="color:#8A847C;font-size:12px;margin-top:32px;border-top:1px solid #D5CFC7;padding-top:16px">'
-            "melopuedopermitir.com · Banco de España · OCDE · BCE"
+            # Intro
+            '<div style="padding:24px 32px 0">'
+            '<p style="font-size:14px;color:#5C5750;line-height:1.65;margin:0 0 24px">'
+            'Basándonos en lo que nos has contado sobre tu situación financiera y tu análisis de ' + tl + ', '
+            'hemos seleccionado las noticias más relevantes para ti en este momento.'
+            "</p>"
+            '<hr style="border:none;border-top:2px solid #17140F;margin:0 0 28px">'
+            "</div>"
+            # Noticias
+            '<div style="padding:0 32px">' + noticias_html + "</div>"
+            # Footer
+            '<div style="padding:24px 32px 32px;margin-top:16px;border-top:1px solid #D5CFC7">'
+            '<p style="font-size:11px;color:#9A9188;margin:0;line-height:1.6">'
+            'Información basada en los estándares del Banco de España, OCDE y BCE.<br>'
+            '<a href="https://melopuedopermitir.com" style="color:#6B4700;text-decoration:none">melopuedopermitir.com</a>'
             "</p></div>"
+            "</div></body></html>"
         )
 
         params2 = {
-            "from": "informe@melopuedopermitir.com",
+            "from": "melopuedopermitir.com <informe@melopuedopermitir.com>",
             "to": [email],
-            "subject": "Noticias relacionadas con tu analisis, " + nombre,
+            "subject": "Noticias que te afectan, " + nombre + " — melopuedopermitir.com",
             "html": html_body,
         }
         r2 = resend.Emails.send(params2)
@@ -268,7 +293,7 @@ def webhook_stripe():
                 print(f"==> PDF generado ({len(pdf_bytes)} bytes). Enviando email 1...")
 
                 params1 = {
-                    "from": "informe@melopuedopermitir.com",
+                    "from": "melopuedopermitir.com <informe@melopuedopermitir.com>",
                     "to":   [email],
                     "subject": f"Tu informe financiero está listo, {nombre}",
                     "html": f"""
