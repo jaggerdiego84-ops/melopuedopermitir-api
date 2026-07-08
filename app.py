@@ -33,9 +33,12 @@ def generar_noticias(user_data):
             '[{"contexto":"motivo concreto por el que le afecta a esta persona (1-2 frases)","titular":"titular con gancho directo","desarrollo":"4-5 frases con datos y cifras concretas","fuente":"nombre del medio","fecha":"2025","url":"https://...o vacio"}]'
         )
 
-        client = anthropic.Anthropic(api_key=os.environ.get('ANTHROPIC_API_KEY', ''))
+        client = anthropic.Anthropic(
+            api_key=os.environ.get('ANTHROPIC_API_KEY', ''),
+            timeout=20.0  # max 20 segundos
+        )
         response = client.messages.create(
-            model='claude-sonnet-4-6',
+            model='claude-haiku-4-5-20251001',  # mas rapido y barato
             max_tokens=1200,
             messages=[{"role": "user", "content": prompt}]
         )
@@ -140,7 +143,7 @@ def _enviar_email_noticias(email, nombre, user_data):
             '<div style="font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;max-width:620px;margin:0 auto;background:#F8F5F0">'
             # Header oscuro
             '<div style="background:#17140F;padding:28px 32px">'
-            '<p style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,0.5);margin:0 0 6px">&#9632; melopuedopermitir</p>'
+            '<p style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,0.45);margin:0 0 6px;font-weight:600">Informe financiero</p>'
             '<h1 style="font-size:24px;color:#FFFFFF;margin:0 0 6px;line-height:1.2">Lo que está pasando<br>y te afecta, ' + nombre + '.</h1>'
             '<p style="font-size:13px;color:#FFFFFF;opacity:.6;margin:0">Seleccionado para tu perfil financiero en ' + ciudad + "</p>"
             "</div>"
