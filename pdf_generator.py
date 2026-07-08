@@ -250,7 +250,7 @@ def generate_pdf(data):
         if by<MY_BOT+6*mm: break
         pct_b=round(val/ingresos*100) if ingresos>0 else 0
         bw_b=(val/ingresos)*BAR_AREA if ingresos>0 else 0
-        c.setFillColor(INK2); c.setFont(F,7.5)
+        c.setFillColor(INK2); c.setFont(F,9)
         c.drawString(14*mm,by+1.8*mm,cat_name)
         c.setFillColor(BG3); c.roundRect(BAR_X,by,BAR_AREA,BAR_H,3.5*mm,fill=1,stroke=0)
         bw_real=max(bw_b,4*mm) if bw_b>1 else 0
