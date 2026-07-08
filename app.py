@@ -53,6 +53,9 @@ def generar_noticias(user_data):
 app = Flask(__name__)
 CORS(app)
 
+# Deduplicacion de webhooks — evita procesar el mismo evento dos veces
+_eventos_procesados = set()
+
 stripe.api_key        = os.environ.get('STRIPE_SECRET_KEY', '')
 STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET', '')
 RESEND_API_KEY        = os.environ.get('RESEND_API_KEY', '')
@@ -70,6 +73,60 @@ def keep_alive():
             print(f"==> Keep-alive ping failed: {e}")
 
 threading.Thread(target=keep_alive, daemon=True).start()
+
+
+def _enviar_email_noticias(email, nombre, user_data):
+    """Genera noticias y manda el segundo email HTML."""
+    try:
+        import gc
+        print("==> Generando noticias para " + email + "...")
+        noticias = generar_noticias(user_data)
+        gc.collect()
+        if not noticias:
+            print("==> Sin noticias, no se envia email 2")
+            return
+
+        ciudad = user_data.get("ciudad", "Espana")
+
+        noticias_html = ""
+        for n in noticias:
+            ctx = n.get("contexto", "").upper()
+            tit = n.get("titular", "")
+            dev = n.get("desarrollo", "")
+            fue = n.get("fuente", "")
+            fec = n.get("fecha", "")
+            noticias_html += (
+                '<div style="border-left:3px solid #6B4700;padding:0 0 0 16px;margin-bottom:28px">'
+                '<p style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#6B4700;margin:0 0 6px">' + ctx + "</p>"
+                '<h2 style="font-size:17px;color:#17140F;margin:0 0 10px;line-height:1.35">' + tit + "</h2>"
+                '<p style="font-size:14px;color:#4A4540;line-height:1.7;margin:0 0 8px">' + dev + "</p>"
+                '<p style="font-size:11px;color:#9A9188;margin:0">' + fue + " · " + fec + "</p>"
+                "</div>"
+            )
+
+        html_body = (
+            '<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:40px 20px;background:#F8F5F0">'
+            '<div style="background:#17140F;color:white;padding:24px 28px;border-radius:8px;margin-bottom:28px">'
+            '<p style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;opacity:.5;margin-bottom:4px">MELOPUEDOPERMITIR.COM</p>'
+            '<h1 style="font-size:22px;margin:0">Lo que está pasando y te afecta, ' + nombre + '.</h1>'
+            '<p style="font-size:13px;opacity:.7;margin:8px 0 0">Seleccionado para tu perfil financiero en ' + ciudad + "</p>"
+            "</div>"
+            + noticias_html +
+            '<p style="color:#8A847C;font-size:12px;margin-top:32px;border-top:1px solid #D5CFC7;padding-top:16px">'
+            "melopuedopermitir.com · Banco de España · OCDE · BCE"
+            "</p></div>"
+        )
+
+        params2 = {
+            "from": "informe@melopuedopermitir.com",
+            "to": [email],
+            "subject": "Noticias relacionadas con tu analisis, " + nombre,
+            "html": html_body,
+        }
+        r2 = resend.Emails.send(params2)
+        print("==> Email 2 noticias enviado OK: " + str(r2))
+    except Exception as e2:
+        print("==> ERROR email 2 noticias: " + str(e2))
 
 @app.route('/health', methods=['GET'])
 def health():
@@ -157,6 +214,16 @@ def webhook_stripe():
         print(f"==> ERROR verificando webhook: {e}")
         return jsonify({'error': str(e)}), 400
 
+    # Deduplicar — ignorar si ya procesamos este evento
+    evento_id = event.get('id', '')
+    if evento_id in _eventos_procesados:
+        print(f"==> Evento duplicado ignorado: {evento_id}")
+        return jsonify({'status': 'ok'})
+    _eventos_procesados.add(evento_id)
+    # Limpiar cache si crece demasiado
+    if len(_eventos_procesados) > 1000:
+        _eventos_procesados.clear()
+
     if event['type'] == 'checkout.session.completed':
         session  = event['data']['object']
         metadata = session.get('metadata', {})
@@ -228,58 +295,8 @@ def webhook_stripe():
                 r1 = resend.Emails.send(params1)
                 print(f"==> Email 1 enviado OK: {r1}")
 
-                # EMAIL 2: Noticias personalizadas en HTML (en hilo separado)
-                def enviar_noticias(email, nombre, user_data):
-                    try:
-                        import gc as _gc
-                        print(f"==> Generando noticias para {email}...")
-                        noticias = generar_noticias(user_data)
-                        _gc.collect()
-                        if not noticias:
-                            print("==> Sin noticias, no se envía email 2")
-                            return
-
-                        ciudad = user_data.get('ciudad', 'España')
-                        tipo_labels = {'hijo':'guardería/hijo','vivienda':'vivienda','coche':'coche',
-                                      'formacion':'formación','capricho':'capricho','otro':'gasto'}
-                        tl = tipo_labels.get(user_data.get('tipo_gasto','otro'), 'gasto')
-
-                        noticias_html = ''
-                        for n in noticias:
-                            noticias_html += f"""
-                            <div style="border-left:3px solid #6B4700;padding:0 0 0 16px;margin-bottom:28px">
-                                <p style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#6B4700;margin:0 0 6px">{n.get('contexto','').upper()}</p>
-                                <h2 style="font-size:17px;color:#17140F;margin:0 0 10px;line-height:1.35">{n.get('titular','')}</h2>
-                                <p style="font-size:14px;color:#4A4540;line-height:1.7;margin:0 0 8px">{n.get('desarrollo','')}</p>
-                                <p style="font-size:11px;color:#9A9188;margin:0">{n.get('fuente','')} · {n.get('fecha','')}</p>
-                            </div>
-                            """
-
-                        params2 = {{
-                            "from": "informe@melopuedopermitir.com",
-                            "to":   [email],
-                            "subject": f"Noticias relacionadas con tu análisis, {{nombre}}",
-                            "html": f"""
-                            <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:40px 20px;background:#F8F5F0">
-                                <div style="background:#17140F;color:white;padding:24px 28px;border-radius:8px;margin-bottom:28px">
-                                    <p style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;opacity:.5;margin-bottom:4px">MELOPUEDOPERMITIR.COM</p>
-                                    <h1 style="font-size:22px;margin:0">Lo que está pasando y te afecta, {{nombre}}.</h1>
-                                    <p style="font-size:13px;opacity:.7;margin:8px 0 0">Seleccionado para tu perfil financiero en {ciudad}</p>
-                                </div>
-                                {{noticias_html}}
-                                <p style="color:#8A847C;font-size:12px;margin-top:32px;border-top:1px solid #D5CFC7;padding-top:16px">
-                                    melopuedopermitir.com · Banco de España · OCDE · BCE
-                                </p>
-                            </div>
-                            """
-                        }}
-                        r2 = resend.Emails.send(params2)
-                        print(f"==> Email 2 noticias enviado OK: {{r2}}")
-                    except Exception as e2:
-                        print(f"==> ERROR email 2 noticias: {{e2}}")
-
-                # Generar y enviar noticias en el mismo proceso (Stripe espera hasta 30s)
-                enviar_noticias(email, nombre, user_data.copy())
+                # EMAIL 2: llamar funcion top-level
+                _enviar_email_noticias(email, nombre, user_data.copy())
 
             except Exception as e:
                 print(f"==> ERROR: {e}")
