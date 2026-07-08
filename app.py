@@ -119,7 +119,7 @@ def _enviar_email_noticias(email, nombre, user_data):
             '<div style="font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;max-width:620px;margin:0 auto;background:#F8F5F0">'
             # Header oscuro
             '<div style="background:#17140F;padding:28px 32px">'
-            '<p style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#FFFFFF;opacity:.5;margin:0 0 6px">MELOPUEDOPERMITIR.COM</p>'
+            '<p style="font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#FFFFFF;opacity:.5;margin:0 0 6px"><span style="color:#FFFFFF;text-decoration:none">MELOPUEDOPERMITIR​.COM</span></p>'
             '<h1 style="font-size:24px;color:#FFFFFF;margin:0 0 6px;line-height:1.2">Lo que está pasando<br>y te afecta, ' + nombre + '.</h1>'
             '<p style="font-size:13px;color:#FFFFFF;opacity:.6;margin:0">Seleccionado para tu perfil financiero en ' + ciudad + "</p>"
             "</div>"
@@ -239,14 +239,15 @@ def webhook_stripe():
         print(f"==> ERROR verificando webhook: {e}")
         return jsonify({'error': str(e)}), 400
 
-    # Deduplicar — ignorar si ya procesamos este evento
-    evento_id = event.get('id', '')
-    if evento_id in _eventos_procesados:
-        print(f"==> Evento duplicado ignorado: {evento_id}")
+    # Deduplicar usando payment_intent (persiste aunque Render reintente)
+    session_tmp = event['data']['object'] if event['type'] == 'checkout.session.completed' else {}
+    dedup_key = session_tmp.get('payment_intent', '') or event.get('id', '')
+    if dedup_key and dedup_key in _eventos_procesados:
+        print("==> Evento duplicado ignorado: " + dedup_key)
         return jsonify({'status': 'ok'})
-    _eventos_procesados.add(evento_id)
-    # Limpiar cache si crece demasiado
-    if len(_eventos_procesados) > 1000:
+    if dedup_key:
+        _eventos_procesados.add(dedup_key)
+    if len(_eventos_procesados) > 500:
         _eventos_procesados.clear()
 
     if event['type'] == 'checkout.session.completed':
@@ -311,7 +312,7 @@ def webhook_stripe():
                             para tu situación financiera concreta.
                         </p>
                         <p style="color:#8A847C;font-size:12px;margin-top:32px;border-top:1px solid #D5CFC7;padding-top:16px">
-                            melopuedopermitir.com · Banco de España · OCDE · BCE
+                            Información basada en los estándares del Banco de España, OCDE y BCE
                         </p>
                     </div>
                     """,
