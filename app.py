@@ -13,43 +13,65 @@ import anthropic
 import re as _re
 
 def generar_noticias(user_data):
-    """Genera noticias personalizadas usando Claude."""
-    try:
-        ciudad   = user_data.get('ciudad', 'España')
-        tipo     = user_data.get('tipo_gasto', 'otro')
-        ingresos = user_data.get('ingresos', 0)
-        ratio    = user_data.get('ratio', 0)
-        color    = user_data.get('color', 'verde')
+    """Genera noticias personalizadas usando Claude, conectadas al tipo de gasto
+    y a la situacion financiera concreta del usuario. Reintenta una vez si falla,
+    ya que ahora se ejecuta en segundo plano y no hay limite de tiempo de Stripe."""
+    ciudad   = user_data.get('ciudad', 'España')
+    tipo     = user_data.get('tipo_gasto', 'otro')
+    ingresos = user_data.get('ingresos', 0)
+    ratio    = user_data.get('ratio', 0)
+    margen   = user_data.get('margen', 0)
+    color    = user_data.get('color', 'verde')
 
-        tipo_labels = {'hijo':'guardería o tener un hijo','vivienda':'vivienda o alquiler',
-                      'coche':'coche','formacion':'formación','capricho':'capricho','otro':'gasto personal'}
-        tl = tipo_labels.get(tipo, 'gasto personal')
+    tipo_labels = {'hijo':'guardería o tener un hijo','vivienda':'vivienda o alquiler',
+                  'coche':'coche','formacion':'formación','capricho':'capricho','otro':'gasto personal'}
+    tl = tipo_labels.get(tipo, 'gasto personal')
 
-        prompt = (
-            'Usuario en '+ciudad+', analiza '+tl+', ingresos '+str(round(ingresos))+' euros, ratio '+str(round(ratio))+'%. '
-            'Dame 5 noticias financieras espanolas recientes (2024-2025) muy relevantes para esta persona concreta. '
-            'Para cada noticia incluye una URL real del articulo si la conoces, o deja url vacia. '
-            'Solo JSON sin texto extra: '
-            '[{"contexto":"motivo concreto por el que le afecta a esta persona (1-2 frases)","titular":"titular con gancho directo","desarrollo":"4-5 frases con datos y cifras concretas","fuente":"nombre del medio","fecha":"2025","url":"https://...o vacio"}]'
-        )
+    color_context = {
+        'verde':    'tiene margen y su situación es saludable',
+        'amarillo': 'tiene margen ajustado y conviene que vigile su situación',
+        'rojo':     'tiene poco o ningún margen y su situación es delicada',
+    }
+    cc = color_context.get(color, color_context['verde'])
 
-        client = anthropic.Anthropic(
-            api_key=os.environ.get('ANTHROPIC_API_KEY', ''),
-            timeout=20.0  # max 20 segundos
-        )
-        response = client.messages.create(
-            model='claude-sonnet-4-6',
-            max_tokens=1200,
-            messages=[{"role": "user", "content": prompt}]
-        )
+    prompt = (
+        f'Un usuario en {ciudad} acaba de evaluar en melopuedopermitir.com si puede permitirse un gasto de {tl}. '
+        f'Sus datos: ingresos {round(ingresos)}€/mes, ratio de compromisos financieros {round(ratio)}%, '
+        f'margen libre {round(margen)}€/mes. El resultado de su análisis fue "{color}": {cc}.\n\n'
+        f'Genera 5 noticias o datos financieros de actualidad en España (2025-2026) que sean genuinamente '
+        f'relevantes para ESTA persona concreta, no genéricas. Cada una debe conectar con al menos uno de estos dos ejes: '
+        f'(a) su tipo de gasto concreto ({tl}) — ayudas, normativa, precios o tendencias relacionadas; '
+        f'(b) su situación financiera actual — datos del Banco de España, INE, OCDE o BCE sobre ratios de '
+        f'endeudamiento, tipos de interés, ahorro o coste de vida que tengan sentido para alguien en su rango '
+        f'de ingresos y con un veredicto "{color}".\n\n'
+        'Para cada noticia incluye una URL real si la conoces con certeza; si no estás seguro, deja la URL vacía '
+        '(mejor vacía que inventada). '
+        'Responde ÚNICAMENTE con JSON, sin texto antes ni después: '
+        '[{"contexto":"por que le afecta a ESTA persona en concreto, 1-2 frases, citando su dato de ratio, margen o tipo de gasto",'
+        '"titular":"titular con gancho directo","desarrollo":"4-5 frases con datos y cifras concretas",'
+        '"fuente":"nombre del medio u organismo","fecha":"2025 o 2026","url":"https://... o vacio"}]'
+    )
 
-        text = response.content[0].text
-        start = text.find('['); end = text.rfind(']')
-        if start >= 0 and end >= 0:
-            noticias = json.loads(text[start:end+1])
-            return noticias[:5]
-    except Exception as e:
-        print(f"==> Error generando noticias: {e}")
+    for intento in range(2):
+        try:
+            client = anthropic.Anthropic(
+                api_key=os.environ.get('ANTHROPIC_API_KEY', ''),
+                timeout=60.0
+            )
+            response = client.messages.create(
+                model='claude-sonnet-4-6',
+                max_tokens=2000,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            text = response.content[0].text
+            start = text.find('['); end = text.rfind(']')
+            if start >= 0 and end >= 0:
+                noticias = json.loads(text[start:end+1])
+                if noticias:
+                    return noticias[:5]
+            print(f"==> Intento {intento+1}: respuesta sin JSON valido")
+        except Exception as e:
+            print(f"==> Intento {intento+1} fallo generando noticias: {e}")
     return []
 
 
@@ -101,7 +123,8 @@ threading.Thread(target=keep_alive, daemon=True).start()
 
 
 def _enviar_email_noticias(email, nombre, user_data):
-    """Genera noticias y manda el segundo email HTML."""
+    """Genera noticias y manda el segundo email HTML. Pensado para ejecutarse
+    en un hilo de fondo, sin limite de tiempo del webhook de Stripe."""
     try:
         import gc
         print("==> Generando noticias para " + email + "...")
@@ -356,8 +379,15 @@ def webhook_stripe():
                 r1 = resend.Emails.send(params1)
                 print(f"==> Email 1 enviado OK: {r1}")
 
-                # EMAIL 2: llamar funcion top-level
-                _enviar_email_noticias(email, nombre, user_data.copy())
+                # EMAIL 2: en segundo plano, sin bloquear la respuesta del webhook a Stripe.
+                # Ahora que no compite por el limite de 30s de Stripe, generar_noticias
+                # puede tardar lo que necesite (hasta un par de minutos) y reintentar.
+                threading.Thread(
+                    target=_enviar_email_noticias,
+                    args=(email, nombre, user_data.copy()),
+                    daemon=True
+                ).start()
+                print("==> Email 2 (noticias) lanzado en segundo plano")
 
             except Exception as e:
                 print(f"==> ERROR: {e}")
